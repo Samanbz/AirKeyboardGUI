@@ -6,6 +6,8 @@
 
 #include "Subscriber.h"
 
+static constexpr size_t MAX_QUEUE_SIZE = 1000;  // ~33 seconds of frames
+
 template <typename MessageType, size_t batchSize>
 class BatchSubscriber : public Subscriber<MessageType> {
 protected:
@@ -39,6 +41,9 @@ public:
         bool shouldNotify = false;
         {
             std::lock_guard<std::mutex> lock(this->queueLock);
+            if (this->msgQueue.size() >= MAX_QUEUE_SIZE) {
+                this->msgQueue.pop();  // If queue is too large, remove oldest message
+            }
             this->msgQueue.push(message);
             shouldNotify = (this->msgQueue.size() >= batchSize);
         }
