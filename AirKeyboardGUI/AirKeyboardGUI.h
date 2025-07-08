@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <windows.h>
+
 #include <iostream>
 
-// TODO: Reference additional headers your program requires here.
+#include "globals.h"

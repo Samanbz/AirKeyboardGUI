@@ -1,0 +1,8 @@
+# Visual Studio generated .clang-format file
+
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 0
+# don't indent namespace
+NamespaceIndentation: None
+AccessModifierOffset: -4
