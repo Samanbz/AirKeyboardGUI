@@ -60,7 +60,7 @@ private:
     static constexpr int vPad = 100;
 
     /// Collection of ReactiveChar objects representing each character
-    std::vector<ReactiveChar*> children;
+    std::vector<std::unique_ptr<ReactiveChar>> children;
 
     /// Windows class name for this container type
     static constexpr LPCWSTR className = L"TextContainerClass";

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <vector>
 
 #include "../base/BatchSubscriber.h"
 #include "../types.h"
@@ -20,14 +21,11 @@
  */
 class FrameLogger : public BatchSubscriber<IMFSample, 100> {
 private:
-    /// Directory path where frame files will be written
-    std::filesystem::path logDirectory;
+    std::filesystem::path logDirectory;  /// Directory path where frame files will be written
 
-    /// Counter for generating sequential frame filenames
-    size_t frameCount = 0;
-
-    /// Session start time for duration tracking
-    std::chrono::steady_clock::time_point startTime;
+    size_t frameCount = 0;                            /// Counter for generating sequential frame filenames
+    std::chrono::steady_clock::time_point startTime;  /// Session start time for duration tracking
+    LARGE_INTEGER frequency;                          /// Performance counter frequency for timestamp conversion
 
     /**
      * @brief Header structure written before each frame's raw data.
@@ -37,9 +35,6 @@ private:
         UINT64 timestamp;  ///< Frame timestamp in milliseconds
         UINT32 dataSize;   ///< Size of frame data in bytes
     };
-
-    /// Performance counter frequency for timestamp conversion
-    LARGE_INTEGER frequency;
 
     /**
      * @brief Writes a single frame sample to disk as binary file.

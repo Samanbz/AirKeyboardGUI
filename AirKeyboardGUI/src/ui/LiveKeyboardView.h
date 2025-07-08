@@ -10,6 +10,7 @@
 #include <mfobjects.h>
 #include <mfreadwrite.h>
 #include <shlwapi.h>
+#include <atomic>
 #include <memory>
 #include <queue>
 
@@ -57,7 +58,7 @@ private:
     std::unique_ptr<BYTE[]> frameBuffer;
 
     /// Flag indicating frame buffer contains new data requiring redraw
-    bool frameDirty = false;
+    std::atomic<bool> frameDirty = false;
 
     /**
      * @brief Registers the Windows class for LiveKeyboardView instances.

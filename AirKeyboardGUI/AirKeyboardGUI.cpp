@@ -8,16 +8,14 @@
 using namespace std;
 
 HWND g_hMainWindow = nullptr;
-ThreadManager* g_threadManager = new ThreadManager();
+ThreadManager g_threadManager;
 
 LRESULT CALLBACK
 WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
            LPARAM lParam) {
     switch (uMsg) {
         case WM_CLOSE: {
-            if (g_threadManager) {
-                g_threadManager->stop();
-            }
+            g_threadManager.stop();
             DestroyWindow(hwnd);
             return 0;
         }
@@ -64,7 +62,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ShowWindow(g_hMainWindow, nCmdShow);
     UpdateWindow(g_hMainWindow);
 
-    g_threadManager->start();
+    g_threadManager.start();
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0)) {

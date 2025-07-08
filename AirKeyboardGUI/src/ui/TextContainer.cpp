@@ -40,6 +40,8 @@ void TextContainer::computeCharPositions() {
     int linePadding = 5;
     POINTI start = {0, 0};
 
+    std::vector<size_t> toRemove;  // Track indices to remove
+
     for (size_t i = 0; i < children.size(); i++) {
         size_t wordEnd = displayText.find_first_of(L" ", i);
         if (wordEnd == std::wstring::npos) {
@@ -56,7 +58,7 @@ void TextContainer::computeCharPositions() {
                 break;
             }
             if (displayText[i] == L' ') {
-                children[i] = nullptr;
+                toRemove.push_back(i);
                 continue;
             }
         }
@@ -65,7 +67,10 @@ void TextContainer::computeCharPositions() {
         start.x += charSize.cx;
     }
 
-    children.erase(std::remove(children.begin(), children.end(), nullptr), children.end());
+    // Remove spaces at line starts (in reverse to maintain indices)
+    for (auto it = toRemove.rbegin(); it != toRemove.rend(); ++it) {
+        children.erase(children.begin() + *it);
+    }
 }
 
 void TextContainer::update(std::shared_ptr<KeyEvent> ke) {
@@ -120,14 +125,11 @@ int TextContainer::calculateHeight() {
 }
 
 void TextContainer::updateChildren() {
-    for (auto* child : children) {
-        delete child;
-    }
     children.clear();
     children.reserve(displayText.size());
 
     for (const WCHAR ch : displayText) {
-        children.push_back(new ReactiveChar(ch, 0, 0));
+        children.push_back(std::make_unique<ReactiveChar>(ch, 0, 0));
     }
 }
 
@@ -191,7 +193,7 @@ TextContainer::TextContainer() : UIView(hPad, vPad, calculateWidth(), calculateH
 
 void TextContainer::drawSelf(HDC hdc) {
     HFONT oldFont = (HFONT)SelectObject(hdc, font);
-    for (ReactiveChar* child : children) {
+    for (const auto& child : children) {
         child->drawSelf(hdc);
     }
 
