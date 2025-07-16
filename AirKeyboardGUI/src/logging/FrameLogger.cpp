@@ -1,53 +1,32 @@
 #include "FrameLogger.h"
 
-void FrameLogger::writeSampleToDisk(IMFSample* sample) {
-    // Get timestamp
-    LONGLONG sampleTime = 0;
-    sample->GetSampleTime(&sampleTime);
+void FrameLogger::writeFrameToDisk(ProcessedFrame* frame) {
+    if (!frame || !frame->data) return;
 
-    // Get frame data
-    IMFMediaBuffer* buffer = nullptr;
-    if (SUCCEEDED(sample->ConvertToContiguousBuffer(&buffer))) {
-        BYTE* data = nullptr;
-        DWORD dataLength = 0;
+    size_t requiredSize = sizeof(FrameHeader) + frame->header.dataSize;
 
-        if (SUCCEEDED(buffer->Lock(&data, nullptr, &dataLength))) {
-            std::stringstream fileName;
-            fileName << logDirectory.string() << "/frame_" << std::setw(6) << std::setfill('0') << frameCount++ << ".raw";
+    std::stringstream fileName;
+    fileName << logDirectory.string() << "/frame_" << std::setw(6) << std::setfill('0') << frameCount++ << ".raw";
 
-            std::ofstream file(fileName.str(), std::ios::binary);
-            if (!file.is_open()) {
-                buffer->Unlock();
-                buffer->Release();
-                return;  // Handle error appropriately
-            }
-
-            UINT64 captureTime = 0;
-            sample->GetUINT64(MFSampleExtension_Timestamp, &captureTime);
-
-            //// Write frame header
-            FrameHeader frameHeader;
-            frameHeader.timestamp = (captureTime * 1000) / frequency.QuadPart;
-            frameHeader.dataSize = dataLength;
-
-            file.write(reinterpret_cast<const char*>(&frameHeader), sizeof(FrameHeader));
-
-            // Write frame data
-            file.write(reinterpret_cast<const char*>(data), dataLength);
-
-            file.close();
-            buffer->Unlock();
-        }
-        buffer->Release();
+    std::ofstream file(fileName.str(), std::ios::binary);
+    if (!file.is_open()) {
+        return;  // TODO? Handle error appropriately
     }
+
+    file.write(reinterpret_cast<const char*>(&frame->header), sizeof(FrameHeader));
+
+    // Write frame data
+    file.write(reinterpret_cast<const char*>(frame->data.get()), frame->header.dataSize);
+
+    file.close();
 }
 
 void FrameLogger::processBatch() {
     UINT32 batchFrameCount = 0;
     while (!flushQueue.empty()) {
-        std::shared_ptr<IMFSample> sample = flushQueue.front();
+        std::shared_ptr<ProcessedFrame> frame = flushQueue.front();
 
-        writeSampleToDisk(sample.get());
+        writeFrameToDisk(frame.get());
         batchFrameCount++;
         flushQueue.pop();
     }
@@ -61,8 +40,7 @@ FrameLogger::FrameLogger(const std::filesystem::path& logDir)
         auto time = std::chrono::system_clock::now();
         auto time_t = std::chrono::system_clock::to_time_t(time);
         metaFile << "Session started: " << std::ctime(&time_t);
-        metaFile << "Frame format: NV12\n";
-        metaFile << "Frame size: 1920x1080\n";
+        metaFile << "Frame format: RGB\n";
         metaFile.close();
     }
     QueryPerformanceFrequency(&frequency);

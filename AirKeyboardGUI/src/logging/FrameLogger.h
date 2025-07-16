@@ -19,7 +19,7 @@
  * them to individual .raw files with metadata headers. Processes frames in batches
  * for improved I/O performance and maintains session information.
  */
-class FrameLogger : public BatchSubscriber<IMFSample, 100> {
+class FrameLogger : public BatchSubscriber<ProcessedFrame, 100> {
 private:
     std::filesystem::path logDirectory;  /// Directory path where frame files will be written
 
@@ -28,22 +28,13 @@ private:
     LARGE_INTEGER frequency;                          /// Performance counter frequency for timestamp conversion
 
     /**
-     * @brief Header structure written before each frame's raw data.
-     * Contains timing and size information for frame reconstruction.
-     */
-    struct FrameHeader {
-        UINT64 timestamp;  ///< Frame timestamp in milliseconds
-        UINT32 dataSize;   ///< Size of frame data in bytes
-    };
-
-    /**
      * @brief Writes a single frame sample to disk as binary file.
      * @param sample MediaFoundation sample containing frame data
      *
      * Extracts frame data, creates header with timing information,
      * and writes both header and raw frame data to sequentially numbered file.
      */
-    void writeSampleToDisk(IMFSample* sample);
+    void writeFrameToDisk(ProcessedFrame* frame);
 
     /**
      * @brief Processes accumulated batch of frames by writing to disk.

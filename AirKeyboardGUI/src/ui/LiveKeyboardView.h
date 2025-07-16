@@ -16,22 +16,7 @@
 
 #include "../base/StreamSubscriber.h"
 #include "../base/UIView.h"
-
-/**
- * @brief Converts NV12 format to RGB with horizontal mirroring and scaling.
- *
- * @param nv12Data Pointer to the NV12 input frame data
- * @param width Width of the NV12 frame
- * @param height Height of the NV12 frame
- * @param rgbData Output buffer for the converted RGB frame
- * @param outputWidth Output frame width
- * @param outputHeight Output frame height
- *
- * Processes the full input image, applies horizontal mirroring, and scales
- * to the specified output dimensions. Uses optimized YUV to RGB conversion
- * with sequential memory writes for better cache performance.
- */
-void convertAndProcessFrame(const BYTE* nv12Data, int width, int height, BYTE* rgbData, int outputWidth, int outputHeight);
+#include "../types.h"
 
 /**
  * @brief Real-time video display component for keyboard/hand tracking visualization.
@@ -40,7 +25,7 @@ void convertAndProcessFrame(const BYTE* nv12Data, int width, int height, BYTE* r
  * from NV12 to RGB format, applies mirroring, and displays the result in real-time.
  * Positioned at the bottom-right corner of the main window for overlay-style display.
  */
-class LiveKeyboardView : public UIView, public StreamSubscriber<IMFSample> {
+class LiveKeyboardView : public UIView, public StreamSubscriber<ProcessedFrame> {
 private:
     /// Fixed display width in pixels
     static constexpr int viewWidth = 720;
@@ -67,14 +52,12 @@ private:
     static void registerWindowClass();
 
     /**
-     * @brief Processes incoming video frames from MediaFoundation.
-     * @param sample Shared pointer to IMFSample containing frame data
+     * @brief Processes incoming processed video frames.
+     * @param sample Shared pointer to ProcessedFrame containing frame data
      *
-     * Converts NV12 format to RGB, applies processing, stores in frame buffer,
-     * and triggers window redraw. Handles MediaFoundation buffer management
-     * including locking, processing, and cleanup.
+     * Scales and stores processed frame into frame buffer, and triggers window redraw.
      */
-    void update(std::shared_ptr<IMFSample> sample) override;
+    void update(std::shared_ptr<ProcessedFrame> sample) override;
 
     /**
      * @brief Calculates X position for right-edge alignment.

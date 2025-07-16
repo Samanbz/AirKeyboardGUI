@@ -8,7 +8,7 @@ FramePostProcessor::FramePostProcessor(const std::string& dir)
 }
 
 bool FramePostProcessor::SpawnWorker() {
-    std::string command = "python frame_postprocessor.py \"" + watch_dir + "\" --workers 8";
+    std::string command = "python frame_postprocessor.py \"" + watch_dir + "\" --workers 2";
 
     OutputDebugStringA(("Running command: " + command + "\n").c_str());
 

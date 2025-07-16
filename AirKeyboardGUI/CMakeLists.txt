@@ -9,7 +9,56 @@ if(WIN32)
     add_definitions(-DUNICODE -D_UNICODE)
 endif()
 
-add_executable (AirKeyboardGUI "AirKeyboardGUI.cpp" "AirKeyboardGUI.h" "src/base/UIView.h" "globals.h" "src/ui/ReactiveChar.h"  "src/capture/KeyEventPublisher.h"  "src/types.h"  "src/capture/FramePublisher.h" "src/base/Publisher.h" "src/base/Subscriber.h" "src/ui/LiveKeyboardView.h"  "src/ThreadManager.h" "src/logging/KeyEventLogger.h"  "src/base/StreamSubscriber.h" "src/base/BatchSubscriber.h" "src/logging/FrameLogger.h" "src/LoggingTrigger.h" "src/EventBus.h" "config.h" "src/ui/TextProvider.h"  "src/logging/FramePostProcessor.h"   "src/ui/LiveKeyboardView.cpp" "src/capture/FramePublisher.cpp" "src/capture/KeyEventPublisher.cpp" "src/logging/FrameLogger.cpp" "src/logging/FramePostProcessor.cpp" "src/logging/KeyEventLogger.cpp" "src/ui/TextProvider.cpp" "src/ui/TextContainer.cpp" "src/EventBus.cpp" "src/LoggingTrigger.cpp" "src/ThreadManager.cpp")
+# Enable CUDA
+enable_language(CUDA)
+find_package(CUDAToolkit REQUIRED)
+
+# Set CUDA properties
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_ARCHITECTURES "86") 
+
+# Add CUDA source files
+set(CUDA_SOURCES
+    src/capture/FrameProcessor.cu
+)
+
+set(CPP_SOURCES
+    AirKeyboardGUI.cpp
+    AirKeyboardGUI.h
+    src/base/UIView.h
+    globals.h
+    src/ui/ReactiveChar.h
+    src/capture/KeyEventPublisher.h
+    src/types.h
+    src/capture/FramePublisher.h
+    src/base/Publisher.h
+    src/base/Subscriber.h
+    src/ui/LiveKeyboardView.h
+    src/ThreadManager.h
+    src/logging/KeyEventLogger.h
+    src/base/StreamSubscriber.h
+    src/base/BatchSubscriber.h
+    src/logging/FrameLogger.h
+    src/LoggingTrigger.h
+    src/EventBus.h
+    config.h
+    src/ui/TextProvider.h
+    src/logging/FramePostProcessor.h
+    src/ui/LiveKeyboardView.cpp
+    src/capture/FramePublisher.cpp
+    src/capture/KeyEventPublisher.cpp
+    src/logging/FrameLogger.cpp
+    src/logging/FramePostProcessor.cpp
+    src/logging/KeyEventLogger.cpp
+    src/ui/TextProvider.cpp
+    src/ui/TextContainer.cpp
+    src/EventBus.cpp
+    src/LoggingTrigger.cpp
+    src/ThreadManager.cpp
+ "src/capture/FrameProcessor.cpp")
+
+add_executable (AirKeyboardGUI ${CPP_SOURCES} ${CUDA_SOURCES})
 
 set_target_properties(AirKeyboardGUI PROPERTIES
     WIN32_EXECUTABLE TRUE
@@ -21,6 +70,8 @@ endif()
 
 # Windows API libraries
 target_link_libraries(${PROJECT_NAME}
+    CUDA::cudart
+    CUDA::cuda_driver
     user32
     gdi32
     kernel32

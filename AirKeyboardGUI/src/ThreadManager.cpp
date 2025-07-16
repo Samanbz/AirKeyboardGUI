@@ -37,6 +37,20 @@ void ThreadManager::startCapturing() {
         }
     });
 
+    frameProcessorThread = std::thread([this]() {
+        FramePublisher* framePublisher = FramePublisher::getInstance();
+        FrameProcessor& frameProcessor = FrameProcessor::getInstance();
+
+        framePublisher->subscribe(&frameProcessor);
+
+        while (running) {
+            frameProcessor.dequeue();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        framePublisher->unsubscribe(&frameProcessor);
+    });
+
     keyEventPublisherThread = std::thread([this]() {
         KeyEventPublisher& keyEventPublisher = KeyEventPublisher::getInstance();
         keyEventPublisherReady.set_value();  // Notify that publisher is ready
@@ -61,7 +75,7 @@ void ThreadManager::startLogging() {
     // Create the base directory for logging
     std::filesystem::create_directories(baseUrl);
 
-    static char g_debugBuffer[1024];
+    static char g_debugBuffer[256];
     sprintf(g_debugBuffer, "AirKeyboardGUI: Starting logging session at %s\n", baseUrl.string().c_str());
     OutputDebugStringA(g_debugBuffer);
 
@@ -95,9 +109,9 @@ void ThreadManager::startLogging() {
         FramePostProcessor framePostProcessor{logDir.string()};
         framePostProcessor.SpawnWorker();
 
-        FramePublisher* framePublisher = FramePublisher::getInstance();
+        FrameProcessor& frameProcessor = FrameProcessor::getInstance();
 
-        framePublisher->subscribe(&frameLogger);
+        frameProcessor.subscribe(&frameLogger);
         while (logging) {
             // Wait for batch size or timeout
             if (frameLogger.waitForBatch(std::chrono::milliseconds(500))) {
@@ -108,7 +122,8 @@ void ThreadManager::startLogging() {
                 frameLogger.flush();
             }
         }
-        framePublisher->unsubscribe(&frameLogger);
+
+        frameProcessor.unsubscribe(&frameLogger);
 
         framePostProcessor.terminateWorker();
     });
@@ -168,8 +183,8 @@ void ThreadManager::start() {
         int viewHeight = viewWidth * 9 / 16;
 
         LiveKeyboardView liveKeyboardView{};
-        FramePublisher* framePublisher = FramePublisher::getInstance();
-        framePublisher->subscribe(&liveKeyboardView);
+        FrameProcessor& frameProcessor = FrameProcessor::getInstance();
+        frameProcessor.subscribe(&liveKeyboardView);
         const auto interval = std::chrono::milliseconds(33);
         auto next_time = std::chrono::steady_clock::now();
 
@@ -184,7 +199,7 @@ void ThreadManager::start() {
             std::this_thread::sleep_until(next_time);
         }
 
-        framePublisher->unsubscribe(&liveKeyboardView);
+        frameProcessor.unsubscribe(&liveKeyboardView);
     });
 
     loggingTriggerThread = std::thread([this]() {
@@ -212,6 +227,9 @@ void ThreadManager::stop() {
 
     if (framePublisherThread.joinable()) {
         framePublisherThread.join();
+    }
+    if (frameProcessorThread.joinable()) {
+        frameProcessorThread.join();
     }
     if (keyEventPublisherThread.joinable()) {
         keyEventPublisherThread.join();

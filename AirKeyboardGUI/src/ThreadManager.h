@@ -11,6 +11,7 @@
 #include "../config.h"
 #include "EventBus.h"
 #include "LoggingTrigger.h"
+#include "capture/FrameProcessor.h"
 #include "capture/FramePublisher.h"
 #include "capture/KeyEventPublisher.h"
 #include "logging/FrameLogger.h"
@@ -30,6 +31,9 @@ class ThreadManager {
 private:
     /// Thread for continuous frame capture from camera
     std::thread framePublisherThread;
+
+    /// Thread for continuous frame procesing
+    std::thread frameProcessorThread;
 
     /// Thread for global keyboard event capture
     std::thread keyEventPublisherThread;

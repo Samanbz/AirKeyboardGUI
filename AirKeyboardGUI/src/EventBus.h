@@ -69,9 +69,7 @@ public:
      */
     void clear();
 
-    /// Deleted copy constructor to enforce singleton pattern
-    EventBus(const EventBus&) = delete;
+    EventBus(const EventBus&) = delete;  // Deleted copy constructor to enforce singleton pattern
 
-    /// Deleted assignment operator to enforce singleton pattern
-    EventBus& operator=(const EventBus&) = delete;
+    EventBus& operator=(const EventBus&) = delete;  // Deleted assignment operator to enforce singleton pattern
 };

@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import sys
@@ -14,6 +15,7 @@ import traceback
 import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2
 import random
+import pandas as pd
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,6 +25,12 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+COLUMNS = [
+    'session_frame', 'timestamp', 'hand_index', 'hand_label',
+    'hand_score', 'landmark_index', 'x', 'y', 'z',
+    'world_x', 'world_y', 'world_z'
+]
 
 
 class HandLandmarker:
@@ -48,13 +56,14 @@ class HandLandmarker:
 
         self.hand_landmarker = HandLandmarker.create_from_options(options)
 
-    def detect_landmarks(self, rgb_frame, relative_timestamp, max_retries=10):
+    def detect_landmarks(self, rgb_frame, relative_timestamp, max_retries=5):
         """Detect hand landmarks in the RGB frame"""
         """Detect hand landmarks with retry on timestamp ordering issues"""
+        # Convert RGB to MediaPipe format
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+
         for attempt in range(max_retries):
             try:
-                mp_image = mp.Image(
-                    image_format=mp.ImageFormat.SRGB, data=rgb_frame)
                 results = self.hand_landmarker.detect_for_video(
                     mp_image, relative_timestamp)
                 return results
@@ -113,96 +122,92 @@ class FramePostProcessor:
         self.num_workers = num_workers
         self.running = True
         self.start_timestamp = None
+        self.landmarks = pd.DataFrame(columns=COLUMNS)
 
         self.hand_landmarker = HandLandmarker()
 
-    def nv12_to_rgb(self, nv12_data, width, height):
-        """Convert NV12 format to RGB"""
-        yuv = np.frombuffer(nv12_data, dtype=np.uint8)
+    def parse_landmarks(self, results, session_frame, timestamp):
+        """
+        Parse MediaPipe HandLandmarkerResult into a row for CSV export.
+        """
+        rows = []
 
-        # Y plane
-        y = yuv[:width*height].reshape((height, width))
+        for h_idx in range(len(results.handedness)):
+            for l_idx, landmark in enumerate(results.hand_landmarks[h_idx]):
+                row = {
+                    'session_frame': session_frame,
+                    'timestamp': timestamp,
+                    'hand_index': h_idx,
+                    'hand_label': 'left' if h_idx == 0 else 'right',
+                    'hand_score': results.handedness[h_idx][0].score,
+                    'landmark_index': l_idx,
+                    'x': landmark.x,
+                    'y': landmark.y,
+                    'z': landmark.z,
+                    'world_x': results.hand_world_landmarks[h_idx][l_idx].x,
+                    'world_y': results.hand_world_landmarks[h_idx][l_idx].y,
+                    'world_z': results.hand_world_landmarks[h_idx][l_idx].z,
+                }
+                rows.append(row)
 
-        # UV plane (interleaved, half resolution)
-        uv_start = width * height
-        uv = yuv[uv_start:uv_start +
-                 (width*height//2)].reshape((height//2, width//2, 2))
+        return pd.DataFrame(rows, columns=COLUMNS)
 
-        # Upsample UV to full resolution
-        u = cv2.resize(uv[:, :, 0], (width, height),
-                       interpolation=cv2.INTER_LINEAR)
-        v = cv2.resize(uv[:, :, 1], (width, height),
-                       interpolation=cv2.INTER_LINEAR)
+    def log_landmarks(self, results, frame_path, timestamp):
+        # log landmarks to DataFrame
+        session_frame = frame_path.stem.split('_')[-1]
 
-        # Convert YUV to RGB
-        yuv_img = cv2.merge([y, u, v])
-        rgb = cv2.cvtColor(yuv_img, cv2.COLOR_YUV2RGB)
-        return rgb
+        landmarks_df = self.parse_landmarks(
+            results, session_frame, timestamp)
+
+        self.landmarks = pd.concat(
+            [self.landmarks, landmarks_df], ignore_index=True)
+
+    def save_landmarks(self, output_path):
+        if not self.landmarks.empty:
+            output_file = Path(output_path) / 'landmarks.csv'
+            self.landmarks.to_csv(output_file, index=False)
+            logging.info(f"Landmarks saved to {output_file}")
+        else:
+            logging.info("No landmarks to save.")
 
     def unpack_frame_file(self, frame_path):
         # Read frame header and data
         with open(frame_path, 'rb') as f:
-            # Read header: timestamp (8 bytes) + data size (4 bytes)
-            header_data = f.read(12)
-            if len(header_data) < 12:
+            # Read header: timestamp (8 bytes) + width (4 bytes) + height (4 bytes) data size (4 bytes)
+            header_data = f.read(20)
+            if len(header_data) < 20:
                 logging.error(f"Invalid file: {frame_path}")
-                return None, None
+                return None, None, None, None
 
-            timestamp, data_size = struct.unpack('<QI', header_data)
-            # check if framepath ends with 00000 without suffix
-            if frame_path.stem.endswith('00000') and self.start_timestamp is None:
-                self.start_timestamp = timestamp
+            timestamp, width, height, data_size = struct.unpack(
+                '<QIII', header_data)
 
             frame_data = f.read(data_size)
+
+            # check if framepath ends with 00000 without suffix
+            if frame_path.stem.endswith('_000000') and self.start_timestamp is None:
+                self.start_timestamp = timestamp
 
             if len(frame_data) != data_size:
                 logging.error(
                     f"Incomplete frame data: {frame_path}, expected {data_size} bytes, got {len(frame_data)} bytes.")
-                return None, None
+                return None, None, None, None
 
-            return frame_data, timestamp
-
-    def save_landmarks(self, results, frame_path, timestamp):
-
-        landmarks = results.hand_landmarks
-        if not landmarks:
-            logging.warning(f"No landmarks found for frame {frame_path}")
-            return
-
-        # Create landmarks directory if it doesn't exist
-        landmarks_dir = self.watch_dir / 'landmarks'
-        landmarks_dir.mkdir(exist_ok=True)
-
-        # Save timestamp
-        timestamp_str = f"{timestamp:013d}"
-        landmarks_file = landmarks_dir / \
-            f"{frame_path.stem}_{timestamp_str}.txt"
-        with open(landmarks_file, 'w') as f:
-            for idx, hand_landmarks in enumerate(landmarks):
-                f.write(f"Hand {idx + 1}:\n")
-                for landmark in hand_landmarks:
-                    f.write(
-                        f"{landmark.x:.6f} {landmark.y:.6f} {landmark.z:.6f}\n")
-                f.write("\n")
-
-        logging.info(f"Saved landmarks to {landmarks_file}")
+            return frame_data, timestamp, width, height
 
     def process_frame(self, frame_path):
-        logging.info(f"Processing frame: {frame_path}")
         frame_path = Path(frame_path)
+        logging.info(f"Processing frame: {frame_path.name}")
 
         try:
-            frame_data, timestamp = self.unpack_frame_file(frame_path)
+            rgb_frame, timestamp, width, height = self.unpack_frame_file(
+                frame_path)
+            rgb_frame = np.frombuffer(
+                rgb_frame, dtype=np.uint8).reshape((height, width, 3))
 
-            if frame_data is None or timestamp is None:
+            if rgb_frame is None or timestamp is None:
                 logging.error(f"Failed to unpack frame: {frame_path}")
                 return
-
-            # Convert NV12 to RGB
-            rgb_frame = self.nv12_to_rgb(frame_data, 1920, 1080)
-
-            # Rotate if needed (keeping your rotation)
-            rgb_frame = cv2.rotate(rgb_frame, cv2.ROTATE_180)
 
             # If first frame hasn't been processed yet, wait for it
             while self.start_timestamp is None:
@@ -214,26 +219,24 @@ class FramePostProcessor:
                 rgb_frame, relative_timestamp)
             if not results or not results.hand_landmarks:
                 logging.warning(
-                    f"No landmarks detected for frame {frame_path}, skipping.")
+                    f"No landmarks detected for frame {frame_path.name}, skipping.")
 
             if results and results.hand_landmarks:
-                self.save_landmarks(results, frame_path, timestamp)
+                self.log_landmarks(results, frame_path, timestamp)
 
                 rgb_frame = self.hand_landmarker.draw_landmarks(
                     results, rgb_frame)
 
-                # Convert RGB to BGR for OpenCV
-            bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
-
             # Quality 95 preserves hand details well
-            cv2.imwrite(frame_path.with_suffix(".jpg"), bgr_frame, [
-                        cv2.IMWRITE_JPEG_QUALITY, 95])
+            cv2.imwrite(frame_path.with_suffix(".jpg"), rgb_frame, [
+                cv2.IMWRITE_JPEG_QUALITY, 95])
 
             # Delete original raw file
             os.remove(frame_path)
 
         except Exception as e:
-            logging.error(f"Error processing frame {frame_path}: {e}")
+            logging.error(
+                f"Error processing frame {frame_path.name}: {e}")
             logging.error(traceback.format_exc())
             return
 
@@ -284,13 +287,10 @@ class FrameHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         if not event.is_directory and event.src_path.endswith('.raw'):
-            time.sleep(0.05)  # Small delay to ensure file is fully written
             self.converter.queue.put(event.src_path)
 
 
 def main():
-    import argparse
-
     parser = argparse.ArgumentParser(
         description='Convert raw NV12 frames to PNG format')
     parser.add_argument('watch_dir', help='Directory to watch for frame files')
@@ -356,6 +356,7 @@ def main():
 
     # Then stop workers
     converter.stop_workers()
+    converter.save_landmarks(args.watch_dir)
 
     # Clean up shutdown signal
     if shutdown_signal_path.exists():

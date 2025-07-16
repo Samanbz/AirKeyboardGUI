@@ -1,49 +1,6 @@
 #include "LiveKeyboardView.h"
 
-#include "../capture/FramePublisher.h"
-
 bool LiveKeyboardView::classRegistered = false;
-
-void convertAndProcessFrame(const BYTE* nv12Data, int width, int height, BYTE* rgbData, int outputWidth, int outputHeight) {
-    const BYTE* yPlane = nv12Data;
-    const BYTE* uvPlane = nv12Data + (width * height);
-
-    for (int y = 0; y < outputHeight; y++) {
-        for (int x = 0; x < outputWidth; x++) {
-            // Map output coordinates to full input image
-            int origX = (x * width) / outputWidth;
-            int origY = (y * height) / outputHeight;
-
-            // Flip the X coordinate
-            int flippedOrigX = width - 1 - origX;
-
-            int yIndex = origY * width + flippedOrigX;
-            int uvIndex = (origY / 2) * width + (flippedOrigX & ~1);
-
-            int Y = yPlane[yIndex] - 16;
-            int U = uvPlane[uvIndex + 1] - 128;
-            int V = uvPlane[uvIndex] - 128;
-
-            // Compute RGB with scaled coefficients for faster computation
-            int R = (298 * Y + 409 * V + 128) >> 8;
-            int G = (298 * Y - 100 * U - 208 * V + 128) >> 8;
-            int B = (298 * Y + 516 * U + 128) >> 8;
-
-            R = (R < 0) ? 0 : (R > 255) ? 255
-                                        : R;
-            G = (G < 0) ? 0 : (G > 255) ? 255
-                                        : G;
-            B = (B < 0) ? 0 : (B > 255) ? 255
-                                        : B;
-
-            // Sequential write for cache performance
-            int rgbIndex = (y * outputWidth + x) * 3;
-            rgbData[rgbIndex] = R;
-            rgbData[rgbIndex + 1] = G;
-            rgbData[rgbIndex + 2] = B;
-        }
-    }
-}
 
 void LiveKeyboardView::registerWindowClass() {
     if (classRegistered) {
@@ -65,31 +22,26 @@ void LiveKeyboardView::registerWindowClass() {
     classRegistered = true;
 }
 
-void LiveKeyboardView::update(std::shared_ptr<IMFSample> sample) {
-    if (!sample) {
-        return;
-    }
-    IMFMediaBuffer* buffer = nullptr;
-    HRESULT hr = sample->ConvertToContiguousBuffer(&buffer);
-    if (FAILED(hr)) {
-        return;  // TODO: handle error appropriately.
-    }
-    BYTE* data = nullptr;
-    DWORD maxLength = 0, currentLength = 0;
-    hr = buffer->Lock(&data, &maxLength, &currentLength);
-    if (FAILED(hr) || !data || currentLength == 0) {
-        buffer->Release();
-        return;  // TODO: handle error appropriately.
-    }
+void LiveKeyboardView::update(std::shared_ptr<ProcessedFrame> frame) {
+    if (!frame || !frame->data) return;
 
-    convertAndProcessFrame(data, DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT,
-                           frameBuffer.get(), viewWidth, viewHeight);
+    for (int y = 0; y < viewHeight; y++) {
+        for (int x = 0; x < viewWidth; x++) {
+            // Map to source coordinates
+            int srcX = (x * frame->header.width) / viewWidth;
+            int srcY = (y * frame->header.height) / viewHeight;
 
-    buffer->Unlock();
-    buffer->Release();
+            int srcIndex = (srcY * frame->header.width + srcX) * 3;
+            int dstIndex = (y * viewWidth + x) * 3;
+
+            // Copy RGB values
+            frameBuffer[dstIndex] = frame->data[srcIndex];
+            frameBuffer[dstIndex + 1] = frame->data[srcIndex + 1];
+            frameBuffer[dstIndex + 2] = frame->data[srcIndex + 2];
+        }
+    }
 
     frameDirty = true;
-
     InvalidateRect(handle, nullptr, TRUE);
     UpdateWindow(handle);
 }
@@ -132,7 +84,7 @@ void LiveKeyboardView::drawSelf(HDC hdc) {
     BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = size.width;
-    bmi.bmiHeader.biHeight = size.height;
+    bmi.bmiHeader.biHeight = -size.height;
     bmi.bmiHeader.biPlanes = 1;
     bmi.bmiHeader.biBitCount = 24;
     bmi.bmiHeader.biCompression = BI_RGB;
