@@ -134,7 +134,7 @@ void TextContainer::updateChildren() {
 }
 
 void TextContainer::subscribeToEvents() {
-    EventBus::getInstance().subscribe(AppEvent::TOGGLE_LOGGING, [this]() {
+    EventBus::getInstance().subscribe(AppEvent::START_LOGGING, [this]() {
         PostMessage(handle, WM_UPDATE_CHILDREN, 0, 0);
     });
 
@@ -184,11 +184,13 @@ TextContainer::TextContainer() : UIView(hPad, vPad, calculateWidth(), calculateH
         throw std::runtime_error("Failed to create TextContainer window");
     }
 
+    ShowWindow(handle, SW_SHOW);
+    UpdateWindow(handle);  // Force window update
+
     computeCharSize();
     subscribeToEvents();
     SendMessage(handle, WM_SETFONT, (WPARAM)font, TRUE);
     requestTextChunk();
-    UpdateWindow(handle);
 }
 
 void TextContainer::drawSelf(HDC hdc) {

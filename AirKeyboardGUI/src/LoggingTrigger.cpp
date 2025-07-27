@@ -20,12 +20,13 @@ void LoggingTrigger::update(std::shared_ptr<KeyEvent> ke) {
         lastKeyTime = now;
 
         if (keyPressCount >= triggerKeyCount) {
-            EventBus::getInstance().publish(AppEvent::TOGGLE_LOGGING);
             loggingActive = !loggingActive;
 
             if (loggingActive) {
+                EventBus::getInstance().publish(AppEvent::START_LOGGING);
                 loggingStartTime = now;
             } else {
+                EventBus::getInstance().publish(AppEvent::STOP_LOGGING);
                 loggingStartTime.reset();
             }
 

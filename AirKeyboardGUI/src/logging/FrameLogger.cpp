@@ -34,15 +34,6 @@ void FrameLogger::processBatch() {
 
 FrameLogger::FrameLogger(const std::filesystem::path& logDir)
     : logDirectory(logDir), startTime(std::chrono::steady_clock::now()) {
-    std::filesystem::path metaPath = logDirectory / "session_info.txt";
-    std::ofstream metaFile(metaPath);
-    if (metaFile.is_open()) {
-        auto time = std::chrono::system_clock::now();
-        auto time_t = std::chrono::system_clock::to_time_t(time);
-        metaFile << "Session started: " << std::ctime(&time_t);
-        metaFile << "Frame format: RGB\n";
-        metaFile.close();
-    }
     QueryPerformanceFrequency(&frequency);
 }
 

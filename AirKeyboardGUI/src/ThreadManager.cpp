@@ -14,20 +14,16 @@ void ThreadManager::subscribeToEvents() {
             stopLogging();
         }
     });
-
-    EventBus::getInstance().subscribe(AppEvent::TOGGLE_LOGGING, [this]() {
-        logging = !logging;
-        if (logging) {
-            startLogging();
-        } else {
-            stopLogging();
-        }
-    });
 }
 
 void ThreadManager::startCapturing() {
+    framePublisherFuture = framePublisherReady.get_future();  // Set up future before thread starts
+
     framePublisherThread = std::thread([this]() {
         FramePublisher framePublisher{};
+
+        framePublisherReady.set_value();  // Signal that publisher is ready
+
         const auto interval = std::chrono::milliseconds(33);
         auto next_time = std::chrono::steady_clock::now();
         while (running) {
@@ -38,9 +34,11 @@ void ThreadManager::startCapturing() {
     });
 
     frameProcessorThread = std::thread([this]() {
-        FramePublisher* framePublisher = FramePublisher::getInstance();
         FrameProcessor& frameProcessor = FrameProcessor::getInstance();
 
+        framePublisherFuture.wait();  // Wait for frame publisher to be ready
+
+        FramePublisher* framePublisher = FramePublisher::getInstance();
         framePublisher->subscribe(&frameProcessor);
 
         while (running) {
@@ -61,7 +59,7 @@ void ThreadManager::startCapturing() {
                 TranslateMessage(&msg);
                 DispatchMessage(&msg);
             } else {
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
     });
@@ -97,6 +95,7 @@ void ThreadManager::startLogging() {
             }
         }
 
+        keyEventLogger.flush();
         keyEventPublisher.unsubscribe(&keyEventLogger);
     });
 
@@ -123,6 +122,7 @@ void ThreadManager::startLogging() {
             }
         }
 
+        frameLogger.flush();
         frameProcessor.unsubscribe(&frameLogger);
 
         framePostProcessor.terminateWorker();

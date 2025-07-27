@@ -1,9 +1,13 @@
 ﻿#include "AirKeyboardGUI.h"
 
 #include <debugapi.h>
+#include <dwmapi.h>
 
+#include "resource.h"
+#include "src/EventBus.h"
 #include "src/ThreadManager.h"
 #include "src/capture/KeyEventPublisher.h"
+#pragma comment(lib, "dwmapi.lib")
 
 using namespace std;
 
@@ -39,8 +43,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     wc.lpszClassName = L"AirKeyboardWindowClass";
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-    wc.hIconSm = LoadIconW(nullptr, IDI_APPLICATION);
+    wc.hIcon = LoadIconW(hInstance, MAKEINTRESOURCE(IDI_KEYBOARD_ICON));
+    wc.hIconSm = LoadIconW(hInstance, MAKEINTRESOURCE(IDI_KEYBOARD_ICON));
     wc.cbSize = sizeof(WNDCLASSEXW);
 
     RegisterClassExW(&wc);
@@ -55,9 +59,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     int y = (screenHeight - wndHeight) / 2;
 
     g_hMainWindow = CreateWindowExW(
-        0, L"AirKeyboardWindowClass", L"Air Keyboard GUI",
+        0, L"AirKeyboardWindowClass", L"AirKeyboard",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, x, y,
         wndWidth, wndHeight, nullptr, nullptr, hInstance, nullptr);
+
+    // Some Window customizations
+    COLORREF lightGray = RGB(230, 230, 230);
+    DwmSetWindowAttribute(g_hMainWindow, DWMWA_CAPTION_COLOR, &lightGray, sizeof(lightGray));
+
+    EventBus::getInstance().subscribe(AppEvent::START_LOGGING, []() {
+        COLORREF red = RGB(255, 0, 0);
+        DwmSetWindowAttribute(g_hMainWindow, DWMWA_BORDER_COLOR, &red, sizeof(red));
+        UpdateWindow(g_hMainWindow);
+    });
+    EventBus::getInstance().subscribe(AppEvent::STOP_LOGGING, []() {
+        COLORREF color = DWMWA_COLOR_DEFAULT;
+        DwmSetWindowAttribute(g_hMainWindow, DWMWA_BORDER_COLOR, &color, sizeof(color));
+        UpdateWindow(g_hMainWindow);
+    });
 
     ShowWindow(g_hMainWindow, nCmdShow);
     UpdateWindow(g_hMainWindow);

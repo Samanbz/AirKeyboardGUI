@@ -9,9 +9,8 @@
  * @brief Application event types for inter-component communication.
  */
 enum class AppEvent {
-    START_LOGGING,   ///< Begin data logging session
-    STOP_LOGGING,    ///< End data logging session
-    TOGGLE_LOGGING,  ///< Switch logging state (start if stopped, stop if started)
+    START_LOGGING,  ///< Begin data logging session
+    STOP_LOGGING,   ///< End data logging session
 };
 
 /**

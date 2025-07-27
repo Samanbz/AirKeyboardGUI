@@ -5,10 +5,12 @@ FramePostProcessor::FramePostProcessor(const std::string& dir)
     ZeroMemory(&process_info, sizeof(process_info));
     ZeroMemory(&startup_info, sizeof(startup_info));
     startup_info.cb = sizeof(startup_info);
+    startup_info.dwFlags = STARTF_USESHOWWINDOW;
+    startup_info.wShowWindow = SW_MINIMIZE;
 }
 
 bool FramePostProcessor::SpawnWorker() {
-    std::string command = "python frame_postprocessor.py \"" + watch_dir + "\" --workers 2";
+    std::string command = "python frame_postprocessor.py \"" + watch_dir + "\" --workers 8";
 
     OutputDebugStringA(("Running command: " + command + "\n").c_str());
 

@@ -54,36 +54,31 @@ class HandLandmarker:
             min_tracking_confidence=0.6
         )
 
+        self.last_frame = -1
+
         self.hand_landmarker = HandLandmarker.create_from_options(options)
 
-    def detect_landmarks(self, rgb_frame, relative_timestamp, max_retries=5):
+    def detect_landmarks(self, frame_number, rgb_frame, relative_timestamp):
         """Detect hand landmarks in the RGB frame"""
         """Detect hand landmarks with retry on timestamp ordering issues"""
         # Convert RGB to MediaPipe format
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-        for attempt in range(max_retries):
-            try:
-                results = self.hand_landmarker.detect_for_video(
-                    mp_image, relative_timestamp)
-                return results
+        try:
+            while frame_number <= self.last_frame:
+                logging.warning(
+                    f"Frame {frame_number} is not monotonically increasing, spinning.")
+                time.sleep(0.003)
+                continue
 
-            except Exception as e:
-                error_msg = str(e).lower()
-                # Check if it's a timestamp ordering issue
-                if "must be monotonically increasing" in error_msg:
-                    # Wait a bit and retry
-                    sleep_time = 0.001 + \
-                        random.uniform(0, 0.001)  # 1ms + jitter
-                    logging.warning(
-                        f"Timestamp ordering issue, retry {attempt+1}/{max_retries} after {sleep_time:.5f}s")
-                    time.sleep(sleep_time)
-                    continue
-                else:
-                    # Different error, don't retry
-                    logging.error(
-                        f"Non-timestamp error detecting landmarks: {e}")
-                    return None
+            results = self.hand_landmarker.detect_for_video(
+                mp_image, relative_timestamp)
+            return results
+
+        except Exception as e:
+            logging.error(
+                f"Non-timestamp error detecting landmarks: {e}")
+            return None
 
         logging.error(
             f"Failed to detect landmarks after {max_retries} retries")
@@ -164,7 +159,7 @@ class FramePostProcessor:
 
     def save_landmarks(self, output_path):
         if not self.landmarks.empty:
-            output_file = Path(output_path) / 'landmarks.csv'
+            output_file = Path(output_path).parent / 'landmarks.csv'
             self.landmarks.to_csv(output_file, index=False)
             logging.info(f"Landmarks saved to {output_file}")
         else:
@@ -215,8 +210,9 @@ class FramePostProcessor:
 
             # Detect landmarks
             relative_timestamp = timestamp - self.start_timestamp
+            frame_number = int(frame_path.stem.split('_')[-1])
             results = self.hand_landmarker.detect_landmarks(
-                rgb_frame, relative_timestamp)
+                frame_number, rgb_frame, relative_timestamp)
             if not results or not results.hand_landmarks:
                 logging.warning(
                     f"No landmarks detected for frame {frame_path.name}, skipping.")
@@ -287,6 +283,7 @@ class FrameHandler(FileSystemEventHandler):
 
     def on_created(self, event):
         if not event.is_directory and event.src_path.endswith('.raw'):
+            time.sleep(0.01)
             self.converter.queue.put(event.src_path)
 
 
@@ -335,7 +332,6 @@ def main():
             # Check for shutdown signal
             if shutdown_signal_path.exists():
                 logging.info("Shutdown signal detected, finishing queue...")
-                time.sleep(3)
                 break
 
             time.sleep(1)
@@ -379,8 +375,21 @@ if __name__ == "__main__":
             sys.exit(1)
 
         os.chdir(watch_dir)
+
         os.system(
-            'ffmpeg -i frame_%06d.jpg -c:v libx264 -pix_fmt yuv420p -r 30 output.mp4')
+            'ffmpeg -i frame_%06d.jpg -c:v libx264 -pix_fmt yuv420p -r 30 ../output.mp4')
+
+        os.chdir(watch_dir.parent)
+        # Remove the watch directory after processing even if its full
+        if watch_dir.exists():
+            for item in watch_dir.iterdir():
+                if item.is_file():
+                    item.unlink()
+                elif item.is_dir():
+                    os.rmdir(item)
+            watch_dir.rmdir()
+            logging.info(f"Removed watch directory: {watch_dir}")
+
     except KeyboardInterrupt:
         logging.info("Stopping frame converter due to keyboard interrupt.")
         sys.exit(0)

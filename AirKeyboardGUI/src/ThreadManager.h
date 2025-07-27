@@ -65,6 +65,12 @@ private:
     /// Future to wait for key event publisher initialization
     std::future<void> keyEventPublisherFuture;
 
+    /// Promise to signal when frame publisher is ready for subscriptions
+    std::promise<void> framePublisherReady;
+
+    /// Future to wait for frame publisher initialization
+    std::future<void> framePublisherFuture;
+
     /**
      * @brief Sets up event bus subscriptions for logging control.
      *
