@@ -78,6 +78,11 @@ void TextContainer::update(std::shared_ptr<KeyEvent> ke) {
 
     if (caretPosition == children.size() && ke->vkey != VK_BACK) {
         requestTextChunk();
+        displayText = textContent;
+        caretPosition = 0;
+        updateChildren();
+        computeCharPositions();
+        InvalidateRect(handle, nullptr, TRUE);
         return;
     }
 
@@ -135,11 +140,11 @@ void TextContainer::updateChildren() {
 
 void TextContainer::subscribeToEvents() {
     EventBus::getInstance().subscribe(AppEvent::START_LOGGING, [this]() {
-        PostMessage(handle, WM_UPDATE_CHILDREN, 0, 0);
+        PostMessage(handle, WM_TOGGLE_DISPLAY_TEXT, 0, 0);
     });
 
     EventBus::getInstance().subscribe(AppEvent::STOP_LOGGING, [this]() {
-        PostMessage(handle, WM_UPDATE_CHILDREN, 0, 0);
+        PostMessage(handle, WM_TOGGLE_DISPLAY_TEXT, 0, 0);
     });
 }
 
@@ -162,7 +167,6 @@ void TextContainer::requestTextChunk() {
     computeCharPositions();
     InvalidateRect(handle, nullptr, TRUE);
 }
-
 TextContainer::TextContainer() : UIView(hPad, vPad, calculateWidth(), calculateHeight()) {
     registerWindowClass();
     updateDPIScale();
@@ -219,7 +223,7 @@ LRESULT TextContainer::handleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) {
             EndPaint(handle, &ps);
             return 0;
         }
-        case WM_UPDATE_CHILDREN:
+        case WM_TOGGLE_DISPLAY_TEXT:
             toggleDisplayText();
             return 0;
         default:

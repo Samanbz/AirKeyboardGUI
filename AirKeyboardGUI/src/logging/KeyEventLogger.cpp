@@ -1,5 +1,7 @@
 #include "KeyEventLogger.h"
 
+#include <fstream>
+
 void KeyEventLogger::processBatch() {
     std::ofstream logFile(logFilePath, std::ios::app);
     if (!logFile.is_open()) {
@@ -25,4 +27,10 @@ void KeyEventLogger::processBatch() {
 
 KeyEventLogger::KeyEventLogger(const std::filesystem::path& filePath) : logFilePath(filePath) {
     QueryPerformanceFrequency(&frequency);
+
+    std::ofstream logFile(logFilePath, std::ios::app);
+    if (logFile.is_open()) {
+        // Write the header if the file is empty
+        logFile << "timestamp,vkey,scancode,pressed\n";
+    }
 }

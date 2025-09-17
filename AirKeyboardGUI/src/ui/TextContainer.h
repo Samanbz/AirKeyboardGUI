@@ -15,7 +15,7 @@
 #include "TextProvider.h"
 
 /// Custom message to trigger children update asynchronously
-#define WM_UPDATE_CHILDREN (WM_USER + 1)
+#define WM_TOGGLE_DISPLAY_TEXT (WM_USER + 1)
 
 /**
  * @brief Manages a collection of reactive characters for text display and input handling.

@@ -30,7 +30,7 @@ private:
     std::chrono::milliseconds timeout = std::chrono::milliseconds(1000);
 
     /// Maximum duration for automatic session termination
-    std::chrono::milliseconds autoStopTimeout = std::chrono::milliseconds(30000);  // 30 seconds
+    std::chrono::milliseconds autoStopTimeout = std::chrono::milliseconds(60 * 1000 * 5);  // 5 minutes
 
     /// Current count of consecutive trigger key presses
     int keyPressCount = 0;

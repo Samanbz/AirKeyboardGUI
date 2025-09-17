@@ -76,7 +76,7 @@ class HandLandmarker:
             return results
 
         except Exception as e:
-            logging.error(
+            logging.warning(
                 f"Non-timestamp error detecting landmarks: {e}")
             return None
 
@@ -192,7 +192,7 @@ class FramePostProcessor:
 
     def process_frame(self, frame_path):
         frame_path = Path(frame_path)
-        logging.info(f"Processing frame: {frame_path.name}")
+        logging.debug(f"Processing frame: {frame_path.name}")
 
         try:
             rgb_frame, timestamp, width, height = self.unpack_frame_file(
@@ -374,10 +374,10 @@ if __name__ == "__main__":
             logging.error(f"Watch directory {watch_dir} is not a directory.")
             sys.exit(1)
 
-        os.chdir(watch_dir)
+        # os.chdir(watch_dir)
 
-        os.system(
-            'ffmpeg -i frame_%06d.jpg -c:v libx264 -pix_fmt yuv420p -r 30 ../output.mp4')
+        # os.system(
+        #     'ffmpeg -i frame_%06d.jpg -c:v libx264 -pix_fmt yuv420p -r 30 ../output.mp4')
 
         os.chdir(watch_dir.parent)
         # Remove the watch directory after processing even if its full

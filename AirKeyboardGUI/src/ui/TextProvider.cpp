@@ -1,10 +1,20 @@
 #include "TextProvider.h"
 
+#include <codecvt>  // Deprecated in C++17, but suitable here
+#include <locale>
+
+// Helper to create a UTF-8 locale
+static std::locale utf8_locale() {
+    return std::locale(std::locale(), new std::codecvt_utf8<wchar_t>());
+}
+
 void TextProvider::initializeFileSize() {
-    std::ifstream file(textFilePath, std::ios::ate | std::ios::binary);
+    // Use wifstream and the UTF-8 locale to correctly determine the file's end position
+    std::wifstream file(textFilePath, std::ios::ate);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open text file: " + textFilePath.string());
     }
+    file.imbue(utf8_locale());
     fileSize = file.tellg();
     file.close();
 }
@@ -12,9 +22,10 @@ void TextProvider::initializeFileSize() {
 void TextProvider::loadProgress() {
     std::ifstream file(progressFilePath);
     if (file.is_open()) {
-        std::streampos pos;
-        file >> reinterpret_cast<std::streamoff&>(pos);
-        currentFilePosition = pos;
+        std::streamoff pos_off = 0;
+        // Safely read the position as a stream offset value
+        file >> pos_off;
+        currentFilePosition = std::streampos(pos_off);
         file.close();
 
         // Ensure position is within file bounds
@@ -27,7 +38,8 @@ void TextProvider::loadProgress() {
 void TextProvider::saveProgress() {
     std::ofstream file(progressFilePath);
     if (file.is_open()) {
-        file << currentFilePosition;
+        // streampos can be converted to streamoff, which has a standard operator<<
+        file << static_cast<std::streamoff>(currentFilePosition);
         file.close();
     }
 }
@@ -38,7 +50,10 @@ std::wstring TextProvider::readChunkFromFile() {
         return L"";
     }
 
-    // Seek to current position
+    // Imbue the stream with the UTF-8 locale
+    file.imbue(utf8_locale());
+
+    // Seek to the last known valid position
     file.seekg(currentFilePosition);
     if (file.eof()) {
         file.close();
@@ -48,20 +63,19 @@ std::wstring TextProvider::readChunkFromFile() {
     std::wstring buffer;
     std::wstring word;
     size_t wordCount = 0;
-    std::streampos chunkStartPos = currentFilePosition;
 
-    // Read words until we have enough for a chunk
     while (wordCount < MAX_WORDS_PER_CHUNK && file >> word) {
         if (!buffer.empty()) {
-            buffer += L" ";
+            buffer += L' ';
         }
         buffer += word;
         wordCount++;
     }
 
-    // Update current position
+    // Update the current position for the next chunk
     currentFilePosition = file.tellg();
     if (file.eof()) {
+        // If we've reached the end, set position to the file size
         currentFilePosition = fileSize;
     }
 
@@ -75,7 +89,6 @@ TextProvider::TextProvider(const std::filesystem::path& filePath)
         throw std::runtime_error("Text file does not exist: " + textFilePath.string());
     }
 
-    // Create progress file path (same directory as text file, with .progress extension)
     progressFilePath = textFilePath;
     progressFilePath.replace_extension(".progress");
 
@@ -96,7 +109,7 @@ std::wstring TextProvider::getNextChunk() {
     if (!hasMoreText()) {
         return L"";
     }
-
+    loadProgress();
     std::wstring chunk = readChunkFromFile();
     saveProgress();
     return chunk;
@@ -104,16 +117,12 @@ std::wstring TextProvider::getNextChunk() {
 
 std::wstring TextProvider::peekNextChunk() {
     if (!hasMoreText()) {
-        return L"";
+        return L""
+;
     }
-
-    // Save current position
+    loadProgress();
     std::streampos savedPosition = currentFilePosition;
-
-    // Read chunk
     std::wstring chunk = readChunkFromFile();
-
-    // Restore position
     currentFilePosition = savedPosition;
 
     return chunk;
@@ -130,7 +139,10 @@ void TextProvider::reset() {
 
 double TextProvider::getProgress() const {
     if (fileSize == 0) return 0.0;
-    return static_cast<double>(currentFilePosition) / static_cast<double>(fileSize);
+    // This progress might not be perfectly linear with the number of characters
+    // due to the variable-length nature of UTF-8, but it's a good approximation.
+    return static_cast<double>(static_cast<std::streamoff>(currentFilePosition)) /
+           static_cast<double>(static_cast<std::streamoff>(fileSize));
 }
 
 std::streampos TextProvider::getCurrentPosition() const {
