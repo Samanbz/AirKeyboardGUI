@@ -12,10 +12,13 @@ This is done in the following manner:
 5. The hand landmarks and the corresponding key events are saved in a CSV file in the selected folder.
 
 ### Demo
+https://github.com/user-attachments/assets/c668ce5d-ddf4-4f02-b161-5a52670c4fa0
+
+### Example output
+https://github.com/user-attachments/assets/8b9e7415-3c79-4b4b-ac67-2d526cb7767a
 
 ### The components of the application
-
-![app components](./assets/diagram.png)
+<img width="2494" height="1335" alt="diagram" src="https://github.com/user-attachments/assets/1282c1f6-1fe4-4db3-bd51-62b3459ef13c" />
 
 ### Requirements
 
