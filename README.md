@@ -1,5 +1,12 @@
 # AirKeyboard: High-Performance Multimodal Data Acquisition Engine
 
+![C++](https://img.shields.io/badge/C++-17-00599C?style=flat-square&logo=c%2B%2B&logoColor=white)
+![CUDA](https://img.shields.io/badge/CUDA-11.0%2B-76B900?style=flat-square&logo=nvidia&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Win32-0078D6?style=flat-square&logo=windows&logoColor=white)
+![Architecture](https://img.shields.io/badge/Architecture-Event--Driven-orange?style=flat-square)
+![Pipeline](https://img.shields.io/badge/Pipeline-Multimodal-blueviolet?style=flat-square)
+
+This repository hosts the core data acquisition infrastructure for the AirKeyboard project...
 This repository hosts the core data acquisition infrastructure for the AirKeyboard project. The system is designed to generate large-scale, temporally aligned datasets for vision-based typing in VR/XR environments.
 
 It addresses the specific engineering challenge of synchronizing high-bandwidth video streams (NV12 raw buffers) with hardware interrupt-level input events, maintaining isochronous data logging without blocking the main application loop.
